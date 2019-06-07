@@ -20,15 +20,42 @@ type MD5Shortener struct {
 	urls map[string]string
 }
 
-// Shorten method accepts accepts a string URL and, if the string is a valid URL, it returns a shortened URL.
+// Shorten method accepts a string URL and, if the string is a valid URL, it returns a shortened URL.
 // If URL is not valid, the method returns an empty string.
 func (s *MD5Shortener) Shorten(url string) string {
 	if checkIfURLisValid(url) {
-		urlBytes := []byte(url)
-		urlHash := md5.Sum(urlBytes)
-		shortURL := fmt.Sprintf("%x", urlHash[:8])
-		s.urls[shortURL] = url
+		shortURL := s.addURL(url)
 		return shortURL
+	}
+	return ""
+}
+
+// addURL adds a given URL into the associative array with the key
+// calculated as an MD5 hash.
+// Cryptographic attacks do not apply in our use-case, hence collisions are highly improbable.
+// We need to accumulate about 2^32 16-hexadecimal digits long 'shortURLs' in the map to face approximately
+// 50% chance of collision. Read more here https://en.wikipedia.org/wiki/Birthday_problem.
+// Still, to resolve this quite unlikely collision, we will try increasing the length of the shortURL by 1 hex digit
+// up to the full length of MD5 vector - 128 bits or 32 hex digits.
+// For those interested in cryptographic attacks against MD5, please see the link below :)
+// https://www.mscs.dal.ca/~selinger/md5collision/
+func (s *MD5Shortener) addURL(url string) string {
+	urlBytes := []byte(url)
+	urlHash := fmt.Sprintf("%x", md5.Sum(urlBytes))
+
+	for hashLen := 16; hashLen <= 32; hashLen++ {
+		shortURL := urlHash[:hashLen]
+
+		if val, inCache := s.urls[shortURL]; inCache {
+			if val == url {
+				return shortURL
+			} else if val != url && hashLen < 32 {
+				continue
+			}
+		} else {
+			s.urls[shortURL] = url
+			return shortURL
+		}
 	}
 	return ""
 }
