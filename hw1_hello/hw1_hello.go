@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -11,19 +12,20 @@ import (
 const (
 	ntpPool       string        = "pool.ntp.org"
 	maxRetries    int           = 5
-	sleepDuration time.Duration = 5e9  // 5*10^9 nanoseconds = 5 seconds
+	sleepDuration 				= time.Second * 5
 )
 
 // retry function retries the given function for the given number of times
 func retry(attempts int, sleep time.Duration, f func() error) (err error) {
 	for i := 0; i < attempts; i++ {
 		err = f()
-		if err == nil {
+		if err != nil {
+			log.Println("ERROR: ", err)
+			log.Printf("Error is retryable. Sleeping for %d seconds and retrying...\n", sleep/1e9)
+			time.Sleep(sleep)
+		} else {
 			return err
 		}
-		log.Println("ERROR: ", err)
-		log.Printf("Error is retryable. Sleeping for %d seconds and retrying...\n", sleep/1e9)
-		time.Sleep(sleep)
 	}
 	return fmt.Errorf("FATAL ERROR after %d attempts, last error: %s", attempts, err)
 }
@@ -33,13 +35,18 @@ func retry(attempts int, sleep time.Duration, f func() error) (err error) {
 // which is the estimated offset relative to the server's clock.
 func printNTPtime() (err error) {
 	response, err := ntp.Query(ntpPool)
-	if err == nil {
-		curTime := time.Now().Add(response.ClockOffset)
-		fmt.Println(curTime)
+	if err != nil {
+		return err
 	}
+	curTime := time.Now().Add(response.ClockOffset)
+	fmt.Println(curTime)
 	return err
 }
 
 func main() {
-	retry(maxRetries, sleepDuration, printNTPtime)
+	err := retry(maxRetries, sleepDuration, printNTPtime)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
