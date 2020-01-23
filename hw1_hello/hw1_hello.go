@@ -21,8 +21,11 @@ func retry(attempts int, sleep time.Duration, f func() error) (err error) {
 		err = f()
 		if err != nil {
 			log.Println("ERROR: ", err)
-			log.Printf("Error is retryable. Sleeping for %d seconds and retrying...\n", sleep/1e9)
-			time.Sleep(sleep)
+			if i + 1 < attempts {
+				// still have attempts remaining
+				log.Printf("Error is retryable. Sleeping for %d seconds and retrying...\n", sleep/1e9)
+				time.Sleep(sleep)
+			}
 		} else {
 			return err
 		}
